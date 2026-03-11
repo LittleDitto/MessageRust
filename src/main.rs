@@ -16,7 +16,7 @@ mod errors;
 use crate::routes::routes;
 use crate::bloc::MessageBloc;
 use crate::repositories::MessageRepository;
-use crate::connection::create_pool;
+use crate::connection::Database;
 use crate::state::AppState;
 
 #[tokio::main]
@@ -33,14 +33,18 @@ async fn main() {
     dotenvy::dotenv().ok();
     tracing::info!("Starting server...");
 
-    let pool = create_pool().await;
-    let message_repository = MessageRepository::new(pool);
+    let pool = Database::create_pool().await;
+    let message_repository = MessageRepository::new(pool.clone()).await;
     let message_bloc = MessageBloc::new(message_repository);
     let app_state = AppState {
         message_bloc,
+        db_pool: pool,
     };
 
-    let app = routes().layer(TraceLayer::new_for_http()).with_state(app_state);
+    let app = routes()
+        .layer(TraceLayer::new_for_http())
+        .with_state(app_state);
+
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let listener = TcpListener::bind(addr).await.unwrap();

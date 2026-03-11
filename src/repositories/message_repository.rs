@@ -10,7 +10,7 @@ pub struct MessageRepository{
 }
 
 impl MessageRepository {
-    pub fn new(pool: PgPool) -> Self {
+    pub async fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 

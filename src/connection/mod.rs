@@ -1,3 +1,3 @@
 pub mod database;
 
-pub use database::create_pool;
+pub use database::Database;
