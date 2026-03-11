@@ -1,0 +1,2 @@
+# MessageRust
+Learning Rust
