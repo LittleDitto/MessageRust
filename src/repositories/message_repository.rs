@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use sqlx::Transaction;
 use tracing::error;
 
 use crate::models::message::Message;
@@ -14,6 +15,13 @@ impl MessageRepository {
         Self { pool }
     }
 
+    pub async fn begin_transaction(&self) -> Result<Transaction<'_, sqlx::Postgres>, AppError> {
+        self.pool.begin().await.map_err(|err| {
+            error!("Database error starting transaction: {:?}", err);
+            AppError::DatabaseError(err.to_string())
+        })
+    }
+    
     pub async fn get_messages(&self, limit: i64, offset: i64) -> Result<Vec<Message>, AppError> {
         let messages = sqlx::query_as::<_, Message>("SELECT id, content FROM messages ORDER BY id DESC LIMIT $1 OFFSET $2")
             .bind(limit)
@@ -28,10 +36,14 @@ impl MessageRepository {
         Ok(messages)
     }
 
-    pub async fn create_message(&self, content: String) -> Result<Message, AppError> {
+    pub async fn create_message(
+        &self, 
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, 
+        content: String
+    ) -> Result<Message, AppError> {
         let message = sqlx::query_as::<_, Message>("INSERT INTO messages (content) VALUES ($1) RETURNING id, content")
             .bind(content)
-            .fetch_one(&self.pool)
+            .fetch_one(tx.as_mut())
             .await
             .map_err(|err| {
                 error!("Database error creating message: {:?}", err);
@@ -41,11 +53,16 @@ impl MessageRepository {
         Ok(message)
     }
 
-    pub async fn update_message(&self, id: i32, content: String) -> Result<Message, AppError> {
+    pub async fn update_message(
+        &self, 
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, 
+        id: i32, 
+        content: String
+    ) -> Result<Message, AppError> {
         let message = sqlx::query_as::<_, Message>("UPDATE messages SET content = $1 WHERE id = $2 RETURNING id, content")
             .bind(content)
             .bind(id)
-            .fetch_one(&self.pool)
+            .fetch_one(tx.as_mut())
             .await
             .map_err(|err| {
                 error!("Database error updating message: {:?}", err);
@@ -55,10 +72,14 @@ impl MessageRepository {
         Ok(message)
     }
 
-    pub async fn delete_message(&self, id: i32) -> Result<Message, AppError> {
+    pub async fn delete_message(
+        &self, 
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, 
+        id: i32
+    ) -> Result<Message, AppError> {
         let message = sqlx::query_as::<_, Message>("DELETE FROM messages WHERE id = $1 RETURNING id, content")
             .bind(id)
-            .fetch_one(&self.pool)
+            .fetch_one(tx.as_mut())
             .await
             .map_err(|err| {
                 error!("Database error deleting message: {:?}", err);
